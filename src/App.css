@@ -1,0 +1,226 @@
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+  height: 80px;
+  background: linear-gradient(180deg, rgba(2,4,10,0.9) 0%, rgba(2,4,10,0) 100%);
+  pointer-events: auto;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.1);
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.logo-icon {
+  animation: rotate 10s linear infinite;
+}
+
+h1 {
+  font-family: 'Oswald', sans-serif; /* You might want to import this font */
+  font-size: 24px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #fff, #94a3b8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.main-nav {
+  display: flex;
+  gap: 40px;
+}
+
+.main-nav a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  padding: 10px 0;
+  position: relative;
+  transition: color 0.3s;
+}
+
+.main-nav a:hover, .main-nav a.active {
+  color: var(--accent-blue);
+}
+
+.main-nav a.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--accent-blue);
+  box-shadow: 0 0 10px var(--accent-blue);
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 15px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-bar input {
+  background: transparent;
+  border: none;
+  color: white;
+  margin-left: 10px;
+  outline: none;
+  width: 150px;
+  font-size: 14px;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icon-btn:hover {
+  color: white;
+  transform: scale(1.1);
+}
+
+/* Sidebar */
+.sidebar {
+  position: absolute;
+  left: 0;
+  top: 80px;
+  bottom: 0;
+  width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 50px;
+  gap: 40px;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  pointer-events: auto;
+  background: linear-gradient(90deg, rgba(2,4,10,0.5) 0%, rgba(2,4,10,0) 100%);
+}
+
+.sidebar-item {
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 10px;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.sidebar-item:hover, .sidebar-item.active {
+  color: var(--accent-blue);
+}
+
+.sidebar-item.active::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 24px;
+  background: var(--accent-blue);
+  box-shadow: 0 0 8px var(--accent-blue);
+}
+
+/* Stats Panel */
+.stats-panel {
+  position: absolute;
+  top: 100px;
+  right: 30px;
+  width: 250px;
+  background: var(--panel-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--panel-border);
+  padding: 20px;
+  border-radius: 8px;
+  pointer-events: auto;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.stat-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  margin-bottom: 20px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.critical { color: var(--accent-red); background: var(--accent-red); }
+.warning { color: var(--accent-orange); background: var(--accent-orange); }
+.low { color: var(--accent-blue); background: var(--accent-blue); }
+
+.hud-overlay {
+    position: absolute;
+    bottom: 40px;
+    left: 120px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.hud-element div {
+    margin-bottom: 5px;
+}
+
+.highlight {
+    color: var(--accent-blue);
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.app-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-dark);
+}
+
+.canvas-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1; /* Behind UI, but visible */
+}
+
+/* Adjust loader styles if needed */
+.loader-container {
+    background: var(--bg-dark) !important;
+}
