@@ -1,5 +1,8 @@
 /**
  * News Store — React Context + useReducer for global crisis state management.
+ * 
+ * Supports per-day history: stores the past 7 days of processed data,
+ * each day accessible via the history slider.
  */
 import { createContext, useContext, useReducer } from 'react';
 
@@ -7,15 +10,16 @@ const NewsContext = createContext(null);
 const NewsDispatchContext = createContext(null);
 
 const initialState = {
-  articles: [],          // Raw articles from API
+  articles: [],          // Raw articles for current day
   processedData: [],     // { country, lat, lng, severity, dominantType, articles }
-  history: [],           // [{ timestamp, data }]
+  dailyHistory: [],      // [{ dateStr, label, data: processedData, articles }] — 7 days
   selectedCountry: null, // Currently selected country data object
   isLoading: false,
   error: null,
   autoRotate: true,
-  historyIndex: -1,      // -1 = live/current, 0+ = historical snapshot
+  activeDayIndex: 6,     // 0-6, where 6 = today (most recent)
   dataSource: 'live',    // 'live' | 'mock'
+  historyLoaded: false,  // Whether all 7 days have been loaded
 };
 
 function newsReducer(state, action) {
@@ -32,19 +36,31 @@ function newsReducer(state, action) {
     case 'SET_ARTICLES':
       return { ...state, articles: action.payload };
 
-    case 'SET_PROCESSED_DATA': {
-      // Push a new snapshot to history
-      const newHistory = [
-        ...state.history,
-        { timestamp: new Date().toISOString(), data: action.payload },
-      ];
+    case 'SET_PROCESSED_DATA':
       return {
         ...state,
         processedData: action.payload,
-        history: newHistory,
-        historyIndex: -1,
         isLoading: false,
         error: null,
+      };
+
+    case 'SET_DAILY_HISTORY':
+      // Set all 7 days of history at once
+      return {
+        ...state,
+        dailyHistory: action.payload,
+        historyLoaded: true,
+      };
+
+    case 'SET_ACTIVE_DAY': {
+      const idx = action.payload;
+      const dayEntry = state.dailyHistory[idx];
+      if (!dayEntry) return state;
+      return {
+        ...state,
+        activeDayIndex: idx,
+        processedData: dayEntry.data,
+        articles: dayEntry.articles || [],
       };
     }
 
@@ -57,18 +73,20 @@ function newsReducer(state, action) {
     case 'SET_AUTO_ROTATE':
       return { ...state, autoRotate: action.payload };
 
+    // Keep legacy support for old history index
     case 'SET_HISTORY_INDEX': {
       const idx = action.payload;
       if (idx === -1) {
-        // Go back to live data (latest snapshot)
-        const latestData = state.history.length > 0
-          ? state.history[state.history.length - 1].data
-          : [];
-        return { ...state, historyIndex: -1, processedData: latestData };
+        // Go to today (latest)
+        const todayIdx = state.dailyHistory.length - 1;
+        const todayEntry = state.dailyHistory[todayIdx];
+        return {
+          ...state,
+          activeDayIndex: todayIdx,
+          processedData: todayEntry ? todayEntry.data : state.processedData,
+        };
       }
-      const snapshot = state.history[idx];
-      if (!snapshot) return state;
-      return { ...state, historyIndex: idx, processedData: snapshot.data };
+      return newsReducer(state, { type: 'SET_ACTIVE_DAY', payload: idx });
     }
 
     default:

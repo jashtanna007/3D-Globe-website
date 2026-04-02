@@ -24,7 +24,7 @@ const LEGEND_ITEMS = [
     desc: 'Earthquakes & floods',
     icon: Zap,
     color: '#ffaa00',
-    effect: 'Fractures',
+    effect: 'Shockwaves',
   },
 ];
 

@@ -1,62 +1,69 @@
 import React from 'react';
-import { Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNewsState, useNewsDispatch } from '../store/newsStore';
 
 const HistorySlider = () => {
-  const { history, historyIndex } = useNewsState();
+  const { dailyHistory, activeDayIndex, historyLoaded } = useNewsState();
   const dispatch = useNewsDispatch();
 
-  if (history.length <= 1) return null;
+  if (!historyLoaded || dailyHistory.length <= 1) return null;
 
-  const currentIdx = historyIndex === -1 ? history.length - 1 : historyIndex;
-
-  const formatTime = (isoString) => {
-    const d = new Date(isoString);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const maxIdx = dailyHistory.length - 1; // 6 = today
+  const currentIdx = activeDayIndex;
 
   const handleSlide = (e) => {
     const val = parseInt(e.target.value, 10);
-    if (val === history.length - 1) {
-      dispatch({ type: 'SET_HISTORY_INDEX', payload: -1 });
-    } else {
-      dispatch({ type: 'SET_HISTORY_INDEX', payload: val });
-    }
+    dispatch({ type: 'SET_ACTIVE_DAY', payload: val });
   };
 
   const goBack = () => {
     if (currentIdx > 0) {
-      dispatch({ type: 'SET_HISTORY_INDEX', payload: currentIdx - 1 });
+      dispatch({ type: 'SET_ACTIVE_DAY', payload: currentIdx - 1 });
     }
   };
 
   const goForward = () => {
-    if (currentIdx < history.length - 1) {
-      const next = currentIdx + 1;
-      dispatch({ type: 'SET_HISTORY_INDEX', payload: next === history.length - 1 ? -1 : next });
+    if (currentIdx < maxIdx) {
+      dispatch({ type: 'SET_ACTIVE_DAY', payload: currentIdx + 1 });
     }
   };
 
+  const currentDay = dailyHistory[currentIdx];
+  const isToday = currentIdx === maxIdx;
+
   return (
     <div className="history-slider">
-      <Clock size={14} className="history-icon" />
+      <Calendar size={14} className="history-icon" />
       <button className="history-nav-btn" onClick={goBack} disabled={currentIdx === 0}>
         <ChevronLeft size={14} />
       </button>
-      <input
-        type="range"
-        min={0}
-        max={history.length - 1}
-        value={currentIdx}
-        onChange={handleSlide}
-        className="history-range"
-      />
-      <button className="history-nav-btn" onClick={goForward} disabled={currentIdx >= history.length - 1}>
+      <div className="history-slider-track-wrapper">
+        <div className="history-day-markers">
+          {dailyHistory.map((day, i) => (
+            <div
+              key={day.dateStr}
+              className={`history-day-dot ${i === currentIdx ? 'active' : ''} ${i === maxIdx ? 'today' : ''}`}
+              onClick={() => dispatch({ type: 'SET_ACTIVE_DAY', payload: i })}
+              title={`${day.label} — ${day.data.length} events`}
+            />
+          ))}
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={maxIdx}
+          step={1}
+          value={currentIdx}
+          onChange={handleSlide}
+          className="history-range"
+        />
+      </div>
+      <button className="history-nav-btn" onClick={goForward} disabled={currentIdx >= maxIdx}>
         <ChevronRight size={14} />
       </button>
       <span className="history-timestamp">
-        {history[currentIdx] ? formatTime(history[currentIdx].timestamp) : '--:--'}
-        {historyIndex === -1 && <span className="history-live-badge">LIVE</span>}
+        {currentDay ? currentDay.label : '--'}
+        {isToday && <span className="history-live-badge">LIVE</span>}
       </span>
     </div>
   );

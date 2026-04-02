@@ -104,19 +104,35 @@ const EarthMaterial = shaderMaterial(
         finalColor *= ring;
       }
 
-      // ── DISASTER: Dark fissures with molten edge glow ──
-      // Cracks are dark voids with orange/amber glow bleeding at edges
-      if (vType > 2.5 && absDisp > 0.003) {
-        float intensity = smoothstep(0.003, 0.08, absDisp);
-        // Deep dark crack interior
-        finalColor = mix(finalColor, vec3(0.02, 0.01, 0.01), intensity * 0.85);
-        // Molten edge glow: brightest at mid-displacement, fades at deep center
-        float edgeBand = smoothstep(0.0, 0.04, absDisp) * (1.0 - smoothstep(0.04, 0.12, absDisp));
-        vec3 moltenColor = vec3(0.9, 0.35, 0.05);
-        finalColor += moltenColor * edgeBand * 1.4;
-        // Faint red interior glow
-        float deepGlow = smoothstep(0.05, 0.12, absDisp);
-        finalColor += vec3(0.4, 0.05, 0.02) * deepGlow * 0.6;
+      // ── DISASTER: Concentric shockwave rings ──
+      // Seismic ripple rings with amber peaks and teal troughs
+      if (vType > 2.5 && absDisp > 0.002) {
+        float intensity = smoothstep(0.002, 0.06, absDisp);
+
+        // Determine if this vertex is on a ring peak or trough
+        // vDisp > 0 = elevated ring crest, vDisp < 0 = depressed trough
+        float isRidge = smoothstep(0.0, 0.03, vDisp);   // positive = ridge
+        float isTrough = smoothstep(0.0, 0.02, -vDisp);  // negative = trough
+
+        // Ring crest: bright amber-yellow glow
+        vec3 ridgeColor = vec3(1.0, 0.65, 0.1);
+        vec3 ridgeHot = vec3(1.0, 0.9, 0.5);
+        vec3 ridge = mix(ridgeColor, ridgeHot, smoothstep(0.02, 0.08, vDisp));
+        finalColor += ridge * isRidge * intensity * 2.0;
+
+        // Trough: dark teal-green void (like displaced earth)
+        vec3 troughColor = vec3(0.02, 0.12, 0.1);
+        finalColor = mix(finalColor, troughColor, isTrough * intensity * 0.7);
+        // Subtle glow at trough edges
+        float troughEdge = smoothstep(0.0, 0.01, -vDisp) * (1.0 - smoothstep(0.01, 0.03, -vDisp));
+        finalColor += vec3(0.3, 0.7, 0.5) * troughEdge * 0.4;
+
+        // Animated outward propagation pulse
+        float wavePulse = 0.85 + 0.15 * sin(uTime * 2.5 + absDisp * 40.0);
+        finalColor *= wavePulse;
+
+        // Faint overall amber haze in disaster zone
+        finalColor += vec3(0.15, 0.08, 0.0) * intensity * 0.3;
       }
 
       gl_FragColor = vec4(finalColor, 1.0);
@@ -156,18 +172,14 @@ function generateSpikeCluster(lat, lng, severity) {
 }
 
 /**
- * Generate crack arm angles for a disaster zone.
- * Returns an array of angles (radians) for the main fracture lines.
+ * Generate wave ring parameters for a disaster zone.
+ * Returns { frequency, ringCount, phaseOffset } — deterministic per crisis.
  */
-function generateCrackArms(lat, lng) {
-  const count = 3 + Math.floor(hash1(lat * 3.3, lng * 7.7) * 4) // 3–6 arms
-  const arms = []
-  const baseAngle = hash2(lat, lng) * Math.PI
-  for (let c = 0; c < count; c++) {
-    const jitter = (hash1(lat + c * 13.1, lng + c * 29.7) - 0.5) * 0.4
-    arms.push(baseAngle + (c / count) * Math.PI + jitter)
-  }
-  return arms
+function generateWaveRings(lat, lng, severity) {
+  const frequency = 1.8 + hash1(lat * 2.1, lng * 4.3) * 1.2  // 1.8–3.0 rings per 10°
+  const ringCount = 3 + Math.floor(severity * 5)               // 3–8 visible rings
+  const phaseOffset = hash2(lat, lng) * Math.PI * 2             // unique phase per zone
+  return { frequency, ringCount, phaseOffset }
 }
 
 // ─── Crisis Marker: Pulsing glow dot + beam at crisis epicenters (unchanged) ───
@@ -257,9 +269,9 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
   const targetDispTypes = useRef(null)     // 0=none, 1=conflict, 2=economic, 3=disaster
   const currentDispAmounts = useRef(null)
   const deformationReady = useRef(false)
-  // Pre-computed spike/crack data (generated once per crisisData update)
+  // Pre-computed spike/wave data (generated once per crisisData update)
   const spikeCache = useRef(null)
-  const crackCache = useRef(null)
+  const waveCache = useRef(null)
 
   const [colorMap] = useTexture([
     'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
@@ -294,7 +306,7 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
   // ENHANCED DEFORMATION COMPUTATION
   //
   // Called once when crisisData changes. Pre-generates all spike
-  // clusters and crack patterns, then computes per-vertex targets.
+  // clusters and wave ring patterns, then computes per-vertex targets.
   //
   // CONFLICT → Sharp crystalline spikes
   //   Each zone spawns 4–14 spike sub-positions. Each spike uses
@@ -305,10 +317,10 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
   //   Uses pow(1-d/r, 3) for steep bowl walls. Concentric ripples
   //   created by a sin() term modulate the depth for visual detail.
   //
-  // DISASTER → Crack/fissure lines radiating from epicenter
-  //   3–6 fracture arms radiate outward. Each arm is a narrow
-  //   angular band (angular width ~5°). Vertices within a crack
-  //   arm are pushed inward. Width tapers at edges.
+  // DISASTER → Concentric shockwave rings
+  //   Sinusoidal displacement waves radiate outward from epicenter.
+  //   Creates visible ring ridges and troughs like seismic waves.
+  //   Amplitude fades with distance; frequency is per-zone unique.
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     if (!deformationReady.current || !originalPositions.current) return
@@ -326,9 +338,9 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
     const dispAmounts = new Float32Array(vertexCount)
     const dispTypes = new Float32Array(vertexCount)
 
-    // ── Pre-generate spike clusters and crack arms ──
+    // ── Pre-generate spike clusters and wave ring params ──
     const spikeData = []   // { crisis, spikes[] }
-    const crackData = []   // { crisis, arms[] }
+    const waveData = []    // { crisis, frequency, ringCount, phaseOffset }
     for (const crisis of crisisData) {
       if (crisis.dominantType === 'conflict') {
         spikeData.push({
@@ -336,14 +348,14 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
           spikes: generateSpikeCluster(crisis.lat, crisis.lng, crisis.severity),
         })
       } else if (crisis.dominantType === 'disaster') {
-        crackData.push({
+        waveData.push({
           crisis,
-          arms: generateCrackArms(crisis.lat, crisis.lng),
+          ...generateWaveRings(crisis.lat, crisis.lng, crisis.severity),
         })
       }
     }
     spikeCache.current = spikeData
-    crackCache.current = crackData
+    waveCache.current = waveData
 
     // ── Per-vertex deformation ──
     for (let vi = 0; vi < vertexCount; vi++) {
@@ -411,43 +423,33 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
             break
           }
 
-          // ───────────────────────────────
-          // DISASTER: CRACK / FISSURE LINES
-          // ───────────────────────────────
+          // ───────────────────────────────────────
+          // DISASTER: CONCENTRIC SHOCKWAVE RINGS
+          // Sinusoidal waves radiating from epicenter
+          // ───────────────────────────────────────
           case 'disaster': {
             typeCode = 3
-            const crackRadius = 18
-            if (dist < crackRadius) {
-              const entry = crackData.find(c => c.crisis === crisis)
-              if (entry) {
-                // Direction from epicenter to this vertex
-                const dlat = lat - crisis.lat
-                const dlng = lng - crisis.lng
-                const angle = Math.atan2(dlng, dlat)
+            const waveRadius = 18
+            if (dist < waveRadius) {
+              const entry = waveData.find(w => w.crisis === crisis)
+              const freq = entry ? entry.frequency : 2.2
+              const phase = entry ? entry.phaseOffset : 0
 
-                let maxCrack = 0
-                for (const armAngle of entry.arms) {
-                  // Angular proximity to crack arm
-                  let angleDiff = Math.abs(angle - armAngle)
-                  // Wrap around
-                  if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff
-                  // Narrow crack band: ~5° angular width
-                  const crackHalfWidth = 0.09 // radians (~5°)
-                  if (angleDiff < crackHalfWidth) {
-                    const widthFalloff = Math.pow(1 - angleDiff / crackHalfWidth, 2)
-                    // Taper with distance from center
-                    const distFalloff = Math.pow(Math.max(0, 1 - dist / crackRadius), 1.5)
-                    // Add noise for natural crack irregularity
-                    const noise = 0.7 + 0.3 * hash1(lat * 5 + armAngle, lng * 5)
-                    maxCrack = Math.max(maxCrack, widthFalloff * distFalloff * noise)
-                  }
-                }
-                displacement -= crisis.severity * 0.18 * maxCrack
-              }
-              // Very subtle overall surface roughening
-              const roughNoise = (hash1(lat * 20, lng * 20) - 0.5) * 2
-              const roughFalloff = Math.pow(Math.max(0, 1 - dist / crackRadius), 2)
-              displacement += roughNoise * crisis.severity * 0.02 * roughFalloff
+              // Amplitude envelope: strongest near center, fades outward
+              const envelope = Math.pow(Math.max(0, 1 - dist / waveRadius), 1.8)
+
+              // Sinusoidal wave creating concentric rings
+              // sin(dist * freq) produces alternating ridges (+) and troughs (-)
+              const wave = Math.sin(dist * freq + phase)
+
+              // Scale the wave by severity and envelope
+              const amplitude = crisis.severity * 0.12
+              displacement += wave * amplitude * envelope
+
+              // Add subtle surface roughening for realism
+              const noise = (hash1(lat * 15 + phase, lng * 15) - 0.5) * 2
+              const noiseFalloff = Math.pow(Math.max(0, 1 - dist / waveRadius), 2.5)
+              displacement += noise * crisis.severity * 0.012 * noiseFalloff
             }
             break
           }
@@ -531,7 +533,7 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
             const cx = current[i3], cy = current[i3 + 1], cz = current[i3 + 2]
             const origR = Math.sqrt(ox * ox + oy * oy + oz * oz)
             const currR = Math.sqrt(cx * cx + cy * cy + cz * cz)
-            dispAttr[vi] = Math.abs(currR - origR)
+            dispAttr[vi] = currR - origR  // Signed: positive = ridge, negative = trough
             typeAttr[vi] = targetTypes[vi]
           }
 

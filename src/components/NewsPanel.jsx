@@ -6,6 +6,7 @@ const TYPE_CONFIG = {
   conflict: { color: '#ff4444', icon: AlertTriangle, label: 'CONFLICT ZONE' },
   economic: { color: '#4488ff', icon: TrendingDown, label: 'ECONOMIC CRISIS' },
   disaster: { color: '#ffaa00', icon: Zap, label: 'NATURAL DISASTER' },
+  general: { color: '#94a3b8', icon: AlertTriangle, label: 'GENERAL NEWS' },
 };
 
 const NewsPanel = () => {

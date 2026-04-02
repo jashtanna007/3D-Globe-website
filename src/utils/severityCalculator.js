@@ -30,7 +30,10 @@ export function calculateSeverity(articles) {
 
     const entry = countryMap[article.country];
     entry.articles.push(article);
-    entry.typeWeights[article.type] = (entry.typeWeights[article.type] || 0) + (article.keywordWeight || 1);
+    // Only count toward type weights if classified (not "general")
+    if (article.type !== 'general') {
+      entry.typeWeights[article.type] = (entry.typeWeights[article.type] || 0) + (article.keywordWeight || 1);
+    }
     entry.totalWeight += article.keywordWeight || 1;
   }
 
