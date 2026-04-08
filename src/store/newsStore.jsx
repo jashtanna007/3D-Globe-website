@@ -3,11 +3,15 @@
  * 
  * Supports per-day history: stores the past 7 days of processed data,
  * each day accessible via the history slider.
+ *
+ * NEW: activeFilters for crisis type filtering, navigateTarget for search.
  */
-import { createContext, useContext, useReducer } from 'react';
+import { createContext, useContext, useReducer, useMemo } from 'react';
 
 const NewsContext = createContext(null);
 const NewsDispatchContext = createContext(null);
+
+const ALL_CRISIS_TYPES = ['conflict', 'economic', 'disaster', 'health'];
 
 const initialState = {
   articles: [],          // Raw articles for current day
@@ -20,6 +24,8 @@ const initialState = {
   activeDayIndex: 6,     // 0-6, where 6 = today (most recent)
   dataSource: 'live',    // 'live' | 'mock'
   historyLoaded: false,  // Whether all 7 days have been loaded
+  activeFilters: [...ALL_CRISIS_TYPES], // Which crisis types to show
+  navigateTarget: null,  // { lat, lng, country } for search navigation
 };
 
 function newsReducer(state, action) {
@@ -73,6 +79,33 @@ function newsReducer(state, action) {
     case 'SET_AUTO_ROTATE':
       return { ...state, autoRotate: action.payload };
 
+    // ── FILTERING ──
+    case 'TOGGLE_FILTER': {
+      const filterType = action.payload;
+      const current = state.activeFilters;
+      const isActive = current.includes(filterType);
+      // Don't allow deactivating ALL filters — keep at least one
+      if (isActive && current.length <= 1) return state;
+      const next = isActive
+        ? current.filter(f => f !== filterType)
+        : [...current, filterType];
+      return { ...state, activeFilters: next };
+    }
+
+    case 'SET_ACTIVE_FILTERS':
+      return { ...state, activeFilters: action.payload };
+
+    // ── NAVIGATION ──
+    case 'NAVIGATE_TO_COUNTRY':
+      return {
+        ...state,
+        navigateTarget: action.payload, // { lat, lng, country }
+        autoRotate: false,              // pause rotation during navigation
+      };
+
+    case 'CLEAR_NAVIGATE':
+      return { ...state, navigateTarget: null };
+
     // Keep legacy support for old history index
     case 'SET_HISTORY_INDEX': {
       const idx = action.payload;
@@ -97,8 +130,24 @@ function newsReducer(state, action) {
 export function NewsProvider({ children }) {
   const [state, dispatch] = useReducer(newsReducer, initialState);
 
+  // Memoized filtered data — derived from processedData + activeFilters
+  const filteredData = useMemo(() => {
+    if (!state.processedData || state.activeFilters.length === ALL_CRISIS_TYPES.length) {
+      return state.processedData; // no filtering needed
+    }
+    return state.processedData.filter(
+      crisis => state.activeFilters.includes(crisis.dominantType)
+    );
+  }, [state.processedData, state.activeFilters]);
+
+  // Augment state with the computed filteredData
+  const augmentedState = useMemo(() => ({
+    ...state,
+    filteredData,
+  }), [state, filteredData]);
+
   return (
-    <NewsContext.Provider value={state}>
+    <NewsContext.Provider value={augmentedState}>
       <NewsDispatchContext.Provider value={dispatch}>
         {children}
       </NewsDispatchContext.Provider>

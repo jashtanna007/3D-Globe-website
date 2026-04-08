@@ -70,10 +70,25 @@ const STRONG_PHRASES = {
     'avalanche warning', 'avalanche kills',
     'drought crisis', 'severe drought', 'water crisis',
     'famine crisis', 'food crisis', 'food shortage',
-    'pandemic outbreak', 'epidemic spreads', 'disease outbreak',
     'mass evacuation', 'forced evacuation', 'evacuation order',
     'catastrophic damage', 'widespread destruction', 'widespread devastation',
     'seismic activity', 'aftershock',
+  ],
+  health: [
+    'pandemic outbreak', 'pandemic spreads', 'pandemic declared',
+    'epidemic spreads', 'epidemic outbreak', 'epidemic declared',
+    'disease outbreak', 'disease spreads', 'disease cluster',
+    'virus spreads', 'virus detected', 'viral outbreak', 'new virus',
+    'covid surge', 'covid variant', 'covid outbreak', 'covid wave',
+    'infection rate', 'infection surge', 'infection spreads',
+    'vaccine rollout', 'vaccine shortage', 'vaccine mandate',
+    'quarantine imposed', 'quarantine zone', 'quarantine order',
+    'health emergency', 'public health crisis', 'health crisis',
+    'hospital overwhelmed', 'hospital capacity', 'icu capacity',
+    'mortality rate', 'death toll rises', 'fatality rate',
+    'who declares', 'who warns', 'world health organization',
+    'contagion spreads', 'highly contagious',
+    'lockdown imposed', 'lockdown extended', 'lockdown measures',
   ],
 };
 
@@ -114,14 +129,27 @@ const KEYWORD_SETS = {
     keywords: [
       'earthquake', 'flood', 'hurricane', 'tsunami', 'wildfire', 'volcano',
       'volcanic', 'cyclone', 'drought', 'tornado', 'landslide', 'avalanche',
-      'typhoon', 'catastrophe', 'evacuation', 'famine', 'epidemic',
-      'pandemic', 'eruption', 'seismic',
+      'typhoon', 'catastrophe', 'evacuation', 'famine',
+      'eruption', 'seismic',
     ],
     weights: {
       'earthquake': 3, 'tsunami': 3, 'hurricane': 3, 'volcano': 3,
       'volcanic': 3, 'eruption': 3, 'cyclone': 3, 'typhoon': 3,
       'wildfire': 2, 'flood': 2, 'tornado': 2, 'drought': 2,
-      'landslide': 2, 'famine': 2, 'pandemic': 3,
+      'landslide': 2, 'famine': 2,
+    },
+  },
+  health: {
+    keywords: [
+      'virus', 'pandemic', 'epidemic', 'covid', 'outbreak', 'infection',
+      'disease', 'vaccine', 'quarantine', 'contagion', 'pathogen',
+      'mortality', 'hospitalization', 'lockdown', 'variant',
+    ],
+    weights: {
+      'pandemic': 3, 'epidemic': 3, 'virus': 3, 'covid': 3,
+      'outbreak': 2, 'infection': 2, 'disease': 2, 'vaccine': 2,
+      'quarantine': 2, 'contagion': 3, 'pathogen': 3,
+      'mortality': 2, 'lockdown': 2,
     },
   },
 };
@@ -160,7 +188,7 @@ const MIN_CONFIDENCE_SCORE = 3;
  */
 export function classifyArticle(article) {
   const text = `${article.title || ''} ${article.description || ''}`.toLowerCase();
-  const scores = { conflict: 0, economic: 0, disaster: 0 };
+  const scores = { conflict: 0, economic: 0, disaster: 0, health: 0 };
 
   // ── PASS 1: Strong phrase matching (highest signal) ──
   for (const [type, phrases] of Object.entries(STRONG_PHRASES)) {

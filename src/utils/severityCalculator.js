@@ -23,7 +23,7 @@ export function calculateSeverity(articles) {
         lat: article.lat,
         lng: article.lng,
         articles: [],
-        typeWeights: { conflict: 0, economic: 0, disaster: 0 },
+        typeWeights: { conflict: 0, economic: 0, disaster: 0, health: 0 },
         totalWeight: 0,
       };
     }

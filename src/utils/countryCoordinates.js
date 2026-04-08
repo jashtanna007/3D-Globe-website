@@ -293,3 +293,19 @@ export function findNearestCountry(lat, lng) {
 
   return nearest;
 }
+
+/**
+ * Get all canonical country names, sorted alphabetically.
+ * Used by SearchBar autocomplete.
+ * @returns {Array<{ name: string, lat: number, lng: number }>}
+ */
+export function getAllCountryNames() {
+  return Object.entries(COUNTRIES)
+    .map(([name, coords]) => ({
+      name: name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+      key: name,
+      lat: coords.lat,
+      lng: coords.lng,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}

@@ -6,6 +6,9 @@ import ControlBar from './ControlBar';
 import HistorySlider from './HistorySlider';
 import NewsPanel from './NewsPanel';
 import LoadingSpinner from './LoadingSpinner';
+import SearchBar from './SearchBar';
+import CrisisFilter from './CrisisFilter';
+import StatsPanel from './StatsPanel';
 
 const Overlay = ({ onRefresh }) => {
   const { processedData, isLoading, dataSource } = useNewsState();
@@ -28,25 +31,34 @@ const Overlay = ({ onRefresh }) => {
           </h1>
         </div>
 
-        {/* Stats Summary */}
-        {totalCrises > 0 && (
-          <div className="stats-summary pointer-events-auto">
-            <div className="stat-chip">
-              <AlertTriangle size={12} className="text-red-400" />
-              <span>{totalCrises} regions</span>
-            </div>
-            <div className="stat-chip">
-              <Activity size={12} className="text-cyan-400" />
-              <span>{totalArticles} articles</span>
-            </div>
-            {topCountry && (
-              <div className="stat-chip stat-chip-hot">
-                <span>🔥 {topCountry.country.charAt(0).toUpperCase() + topCountry.country.slice(1)}</span>
+        {/* Search + Stats chips */}
+        <div className="flex items-center gap-3 pointer-events-auto">
+          <SearchBar />
+          {totalCrises > 0 && (
+            <div className="stats-summary">
+              <div className="stat-chip">
+                <AlertTriangle size={12} className="text-red-400" />
+                <span>{totalCrises} regions</span>
               </div>
-            )}
-          </div>
-        )}
+              <div className="stat-chip">
+                <Activity size={12} className="text-cyan-400" />
+                <span>{totalArticles} articles</span>
+              </div>
+              {topCountry && (
+                <div className="stat-chip stat-chip-hot">
+                  <span>🔥 {topCountry.country.charAt(0).toUpperCase() + topCountry.country.slice(1)}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Statistics Panel (left, below title) */}
+      <StatsPanel />
+
+      {/* Crisis Filter (top area, below search) */}
+      <CrisisFilter />
 
       {/* News Panel (right side) */}
       <NewsPanel />

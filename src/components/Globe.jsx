@@ -4,13 +4,15 @@ import { OrbitControls, Stars, useTexture, shaderMaterial } from '@react-three/d
 import * as THREE from 'three'
 import { useNewsState, useNewsDispatch } from '../store/newsStore'
 import { latLngToVector3, vertexToLatLng, angularDistance, findNearestCountry } from '../utils/countryCoordinates'
+import CountryHighlight from './CountryHighlight'
 
 // ═══════════════════════════════════════════════════════════════
 // ENHANCED EARTH SHADER
 // Reads per-vertex displacement data to add emissive glow:
-//   - Conflict peaks: orange/red fire glow
-//   - Economic vortex: deep blue energy glow
-//   - Disaster cracks: dark fissures with molten edge glow
+//   - Conflict peaks: orange/red fire glow       (type 1)
+//   - Economic vortex: deep blue energy glow      (type 2)
+//   - Disaster rings: amber shockwave glow        (type 3)
+//   - Health blisters: toxic green pulsing glow   (type 4)
 // ═══════════════════════════════════════════════════════════════
 const EarthMaterial = shaderMaterial(
   { uTexture: null, uTime: 0 },
@@ -57,32 +59,24 @@ const EarthMaterial = shaderMaterial(
 
       float absDisp = abs(vDisp);
 
-      // ── CONFLICT: Fiery orange/red emissive ──
-      // Peaks glow hot white-orange, base glows deep red
+      // ── CONFLICT (type 1): Fiery orange/red emissive ──
       if (vType > 0.5 && vType < 1.5 && absDisp > 0.005) {
         float intensity = smoothstep(0.005, 0.15, absDisp);
-        // Gradient: dark red at base → orange → white-hot at tips
         vec3 baseColor = vec3(0.6, 0.08, 0.02);
         vec3 midColor  = vec3(1.0, 0.35, 0.05);
         vec3 tipColor  = vec3(1.0, 0.85, 0.4);
         vec3 fireColor = absDisp < 0.15
           ? mix(baseColor, midColor, absDisp / 0.15)
           : mix(midColor, tipColor, min(1.0, (absDisp - 0.15) / 0.3));
-
-        // Darken base surface near spikes
         finalColor = mix(finalColor, finalColor * 0.3, intensity * 0.6);
-        // Additive emissive glow
         finalColor += fireColor * intensity * 1.8;
-        // Extra bright at extreme peaks
         float peakFlare = smoothstep(0.25, 0.6, absDisp);
         finalColor += tipColor * peakFlare * 2.0;
-        // Subtle pulsing at edges
         float pulse = 0.9 + 0.1 * sin(uTime * 4.0 + vPosition.x * 20.0);
         finalColor *= pulse;
       }
 
-      // ── ECONOMIC: Deep blue vortex energy ──
-      // Center is bright electric blue, walls are dark indigo
+      // ── ECONOMIC (type 2): Deep blue vortex energy ──
       if (vType > 1.5 && vType < 2.5 && absDisp > 0.005) {
         float intensity = smoothstep(0.005, 0.12, absDisp);
         vec3 wallColor   = vec3(0.02, 0.04, 0.18);
@@ -91,48 +85,52 @@ const EarthMaterial = shaderMaterial(
         vec3 vortexColor = absDisp < 0.1
           ? mix(wallColor, midBlue, absDisp / 0.1)
           : mix(midBlue, centerColor, min(1.0, (absDisp - 0.1) / 0.2));
-
-        // Darken surface into the depression
         finalColor = mix(finalColor, vec3(0.01, 0.01, 0.05), intensity * 0.8);
-        // Blue energy glow
         finalColor += vortexColor * intensity * 1.5;
-        // Bright center flash
         float centerFlare = smoothstep(0.2, 0.4, absDisp);
         finalColor += centerColor * centerFlare * 2.5;
-        // Animated concentric pulse
         float ring = 0.85 + 0.15 * sin(uTime * 3.0 - absDisp * 50.0);
         finalColor *= ring;
       }
 
-      // ── DISASTER: Concentric shockwave rings ──
-      // Seismic ripple rings with amber peaks and teal troughs
-      if (vType > 2.5 && absDisp > 0.002) {
+      // ── DISASTER (type 3): Concentric shockwave rings ──
+      if (vType > 2.5 && vType < 3.5 && absDisp > 0.002) {
         float intensity = smoothstep(0.002, 0.06, absDisp);
-
-        // Determine if this vertex is on a ring peak or trough
-        // vDisp > 0 = elevated ring crest, vDisp < 0 = depressed trough
-        float isRidge = smoothstep(0.0, 0.03, vDisp);   // positive = ridge
-        float isTrough = smoothstep(0.0, 0.02, -vDisp);  // negative = trough
-
-        // Ring crest: bright amber-yellow glow
+        float isRidge = smoothstep(0.0, 0.03, vDisp);
+        float isTrough = smoothstep(0.0, 0.02, -vDisp);
         vec3 ridgeColor = vec3(1.0, 0.65, 0.1);
         vec3 ridgeHot = vec3(1.0, 0.9, 0.5);
         vec3 ridge = mix(ridgeColor, ridgeHot, smoothstep(0.02, 0.08, vDisp));
         finalColor += ridge * isRidge * intensity * 2.0;
-
-        // Trough: dark teal-green void (like displaced earth)
         vec3 troughColor = vec3(0.02, 0.12, 0.1);
         finalColor = mix(finalColor, troughColor, isTrough * intensity * 0.7);
-        // Subtle glow at trough edges
         float troughEdge = smoothstep(0.0, 0.01, -vDisp) * (1.0 - smoothstep(0.01, 0.03, -vDisp));
         finalColor += vec3(0.3, 0.7, 0.5) * troughEdge * 0.4;
-
-        // Animated outward propagation pulse
         float wavePulse = 0.85 + 0.15 * sin(uTime * 2.5 + absDisp * 40.0);
         finalColor *= wavePulse;
-
-        // Faint overall amber haze in disaster zone
         finalColor += vec3(0.15, 0.08, 0.0) * intensity * 0.3;
+      }
+
+      // ── HEALTH (type 4): Toxic green pulsating blister glow ──
+      if (vType > 3.5 && vType < 4.5 && absDisp > 0.003) {
+        float intensity = smoothstep(0.003, 0.1, absDisp);
+        // Gradient: dark green base → bright toxic green → white-green tips
+        vec3 baseGreen = vec3(0.02, 0.2, 0.08);
+        vec3 midGreen  = vec3(0.1, 0.8, 0.3);
+        vec3 tipGreen  = vec3(0.5, 1.0, 0.6);
+        vec3 healthColor = absDisp < 0.08
+          ? mix(baseGreen, midGreen, absDisp / 0.08)
+          : mix(midGreen, tipGreen, min(1.0, (absDisp - 0.08) / 0.15));
+        // Darken surrounding surface
+        finalColor = mix(finalColor, finalColor * 0.4, intensity * 0.5);
+        // Green emissive glow
+        finalColor += healthColor * intensity * 1.6;
+        // Pulsating organic animation (slower, rhythmic breathing)
+        float breathe = 0.8 + 0.2 * sin(uTime * 2.0 + vPosition.y * 15.0);
+        finalColor *= breathe;
+        // Bright dome highlight
+        float domeFlare = smoothstep(0.1, 0.2, absDisp);
+        finalColor += tipGreen * domeFlare * 1.0;
       }
 
       gl_FragColor = vec4(finalColor, 1.0);
@@ -143,46 +141,37 @@ const EarthMaterial = shaderMaterial(
 extend({ EarthMaterial })
 
 // ═══════════════════════════════════════════════════════════════
-// DETERMINISTIC HASH FUNCTIONS (for consistent spike/crack generation)
+// DETERMINISTIC HASH FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
 function fract(x) { return x - Math.floor(x) }
 function hash1(x, y) { return fract(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) }
 function hash2(x, y) { return fract(Math.sin(x * 45.164 + y * 93.9891) * 28461.4619) }
 
-/**
- * Generate a cluster of spike positions for a conflict zone.
- * Each spike has a lat/lng offset from the epicenter and a random height.
- * Results are deterministic (based on crisis lat/lng) so they don't change every render.
- */
 function generateSpikeCluster(lat, lng, severity) {
-  const count = 4 + Math.floor(severity * 10)  // 4–14 spikes per zone
+  const count = 4 + Math.floor(severity * 10)
   const spikes = []
   for (let s = 0; s < count; s++) {
     const h1 = hash1(lat + s * 7.31, lng + s * 3.17)
     const h2 = hash2(lat + s * 5.93, lng + s * 11.41)
     const angle = h1 * Math.PI * 2
-    const dist = h2 * 10 * severity       // spread up to 10° from center
+    const dist = h2 * 10 * severity
     const spikeLat = lat + Math.cos(angle) * dist
     const spikeLng = lng + Math.sin(angle) * dist
-    const height = 0.25 + h1 * 0.75       // height factor 0.25–1.0
-    const sharpness = 4 + Math.floor(h2 * 5) // exponent 4–8 (higher = sharper)
+    const height = 0.25 + h1 * 0.75
+    const sharpness = 4 + Math.floor(h2 * 5)
     spikes.push({ lat: spikeLat, lng: spikeLng, height, sharpness })
   }
   return spikes
 }
 
-/**
- * Generate wave ring parameters for a disaster zone.
- * Returns { frequency, ringCount, phaseOffset } — deterministic per crisis.
- */
 function generateWaveRings(lat, lng, severity) {
-  const frequency = 1.8 + hash1(lat * 2.1, lng * 4.3) * 1.2  // 1.8–3.0 rings per 10°
-  const ringCount = 3 + Math.floor(severity * 5)               // 3–8 visible rings
-  const phaseOffset = hash2(lat, lng) * Math.PI * 2             // unique phase per zone
+  const frequency = 1.8 + hash1(lat * 2.1, lng * 4.3) * 1.2
+  const ringCount = 3 + Math.floor(severity * 5)
+  const phaseOffset = hash2(lat, lng) * Math.PI * 2
   return { frequency, ringCount, phaseOffset }
 }
 
-// ─── Crisis Marker: Pulsing glow dot + beam at crisis epicenters (unchanged) ───
+// ─── Crisis Marker ───
 const CrisisMarker = ({ position, type, severity }) => {
   const dotRef = useRef()
   const beamRef = useRef()
@@ -192,6 +181,7 @@ const CrisisMarker = ({ position, type, severity }) => {
       case 'conflict': return '#ff4444'
       case 'economic': return '#4488ff'
       case 'disaster': return '#ffaa00'
+      case 'health': return '#22c55e'
       default: return '#ffffff'
     }
   }, [type])
@@ -206,10 +196,7 @@ const CrisisMarker = ({ position, type, severity }) => {
     }
   })
 
-  const dir = useMemo(() => {
-    const v = new THREE.Vector3(...position).normalize()
-    return v
-  }, [position])
+  const dir = useMemo(() => new THREE.Vector3(...position).normalize(), [position])
 
   const beamPos = useMemo(() => {
     const p = new THREE.Vector3(...position)
@@ -252,9 +239,9 @@ const CrisisMarker = ({ position, type, severity }) => {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// EARTH COMPONENT — Deformation + Raycasting
+// EARTH COMPONENT — Deformation + Raycasting + Navigation
 // ═══════════════════════════════════════════════════════════════
-const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
+const Earth = ({ crisisData, onCountryClick, autoRotate, navigateTarget, onNavigateComplete, selectedCountryKey }) => {
   const groupRef = useRef()
   const meshRef = useRef()
   const materialRef = useRef()
@@ -264,14 +251,18 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
   const originalPositions = useRef(null)
   const targetPositions = useRef(null)
   const currentPositions = useRef(null)
-  // Per-vertex displacement metadata for shader emissive coloring
-  const targetDispAmounts = useRef(null)   // signed displacement magnitude
-  const targetDispTypes = useRef(null)     // 0=none, 1=conflict, 2=economic, 3=disaster
+  const targetDispAmounts = useRef(null)
+  const targetDispTypes = useRef(null)
   const currentDispAmounts = useRef(null)
   const deformationReady = useRef(false)
-  // Pre-computed spike/wave data (generated once per crisisData update)
   const spikeCache = useRef(null)
   const waveCache = useRef(null)
+
+  // Navigation animation state
+  const navAnimating = useRef(false)
+  const navStartRotation = useRef(new THREE.Euler())
+  const navTargetRotation = useRef(new THREE.Euler())
+  const navProgress = useRef(0)
 
   const [colorMap] = useTexture([
     'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
@@ -285,17 +276,14 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
     const positions = geo.attributes.position.array
     const vertexCount = geo.attributes.position.count
 
-    // Clone original positions
     originalPositions.current = new Float32Array(positions)
     currentPositions.current = new Float32Array(positions)
     targetPositions.current = new Float32Array(positions)
 
-    // Create per-vertex attribute arrays for the shader
     targetDispAmounts.current = new Float32Array(vertexCount)
     targetDispTypes.current = new Float32Array(vertexCount)
     currentDispAmounts.current = new Float32Array(vertexCount)
 
-    // Attach custom attributes to geometry (shader reads these)
     geo.setAttribute('aDisplacement', new THREE.BufferAttribute(new Float32Array(vertexCount), 1))
     geo.setAttribute('aType', new THREE.BufferAttribute(new Float32Array(vertexCount), 1))
 
@@ -303,29 +291,34 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
   }, [])
 
   // ═══════════════════════════════════════════════════════════
-  // ENHANCED DEFORMATION COMPUTATION
-  //
-  // Called once when crisisData changes. Pre-generates all spike
-  // clusters and wave ring patterns, then computes per-vertex targets.
-  //
-  // CONFLICT → Sharp crystalline spikes
-  //   Each zone spawns 4–14 spike sub-positions. Each spike uses
-  //   a pow(1-d/r, exponent) falloff where exponent=4–8 creates
-  //   very narrow, sharp cones (unlike Gaussian which is blobby).
-  //
-  // ECONOMIC → Deep funnel/vortex depression
-  //   Uses pow(1-d/r, 3) for steep bowl walls. Concentric ripples
-  //   created by a sin() term modulate the depth for visual detail.
-  //
-  // DISASTER → Concentric shockwave rings
-  //   Sinusoidal displacement waves radiate outward from epicenter.
-  //   Creates visible ring ridges and troughs like seismic waves.
-  //   Amplitude fades with distance; frequency is per-zone unique.
+  // NAVIGATION — Smooth rotation to face a country
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!navigateTarget || !groupRef.current) return
+
+    // Compute the Y rotation needed so the country faces the camera.
+    // The camera looks at the globe from the +Z direction.
+    // For a country at longitude L, we need to rotate the globe
+    // by -(L + 90) degrees around Y (adjusting for SphereGeometry convention).
+    const targetLng = navigateTarget.lng
+    const targetYRotation = -((targetLng + 90) * Math.PI / 180)
+
+    navStartRotation.current = groupRef.current.rotation.clone()
+    navTargetRotation.current = new THREE.Euler(
+      0, // keep X flat
+      targetYRotation,
+      0,
+    )
+    navProgress.current = 0
+    navAnimating.current = true
+  }, [navigateTarget])
+
+  // ═══════════════════════════════════════════════════════════
+  // DEFORMATION COMPUTATION
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     if (!deformationReady.current || !originalPositions.current) return
     if (!crisisData || crisisData.length === 0) {
-      // Reset to undisturbed sphere
       targetPositions.current = new Float32Array(originalPositions.current)
       targetDispAmounts.current.fill(0)
       targetDispTypes.current.fill(0)
@@ -338,9 +331,9 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
     const dispAmounts = new Float32Array(vertexCount)
     const dispTypes = new Float32Array(vertexCount)
 
-    // ── Pre-generate spike clusters and wave ring params ──
-    const spikeData = []   // { crisis, spikes[] }
-    const waveData = []    // { crisis, frequency, ringCount, phaseOffset }
+    // Pre-generate spike clusters and wave ring params
+    const spikeData = []
+    const waveData = []
     for (const crisis of crisisData) {
       if (crisis.dominantType === 'conflict') {
         spikeData.push({
@@ -357,7 +350,7 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
     spikeCache.current = spikeData
     waveCache.current = waveData
 
-    // ── Per-vertex deformation ──
+    // Per-vertex deformation
     for (let vi = 0; vi < vertexCount; vi++) {
       const i3 = vi * 3
       const x = orig[i3], y = orig[i3 + 1], z = orig[i3 + 2]
@@ -366,12 +359,12 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
       const { lat, lng } = vertexToLatLng(x, y, z)
 
       let totalDisplacement = 0
-      let dominantType = 0    // 0=none
-      let maxTypeWeight = 0   // track which type has strongest influence
+      let dominantType = 0
+      let maxTypeWeight = 0
 
       for (const crisis of crisisData) {
         const dist = angularDistance(lat, lng, crisis.lat, crisis.lng)
-        const OUTER_LIMIT = 22 // maximum influence check radius
+        const OUTER_LIMIT = 22
 
         if (dist >= OUTER_LIMIT) continue
 
@@ -379,26 +372,21 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
         let typeCode = 0
 
         switch (crisis.dominantType) {
-          // ───────────────────────────────
           // CONFLICT: SHARP CRYSTALLINE SPIKES
-          // ───────────────────────────────
           case 'conflict': {
             typeCode = 1
-            // Find this crisis's spike cluster
             const entry = spikeData.find(s => s.crisis === crisis)
             if (entry) {
               for (const spike of entry.spikes) {
                 const dSpike = angularDistance(lat, lng, spike.lat, spike.lng)
-                const spikeRadius = 3.0 // very narrow, 3° radius
+                const spikeRadius = 3.0
                 if (dSpike < spikeRadius) {
-                  // Sharp cone: pow(1-d/r, exponent) — high exponent = knife-sharp
                   const normalized = dSpike / spikeRadius
                   const sharp = Math.pow(1 - normalized, spike.sharpness)
                   displacement += crisis.severity * spike.height * 0.55 * sharp
                 }
               }
             }
-            // Broader base elevation (subtle, wide rise)
             if (dist < 15) {
               const baseFalloff = Math.pow(Math.max(0, 1 - dist / 15), 2)
               displacement += crisis.severity * 0.04 * baseFalloff
@@ -406,27 +394,20 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
             break
           }
 
-          // ───────────────────────────────
           // ECONOMIC: DEEP VORTEX / FUNNEL
-          // ───────────────────────────────
           case 'economic': {
             typeCode = 2
             const vortexRadius = 14
             if (dist < vortexRadius) {
               const normalized = dist / vortexRadius
-              // Steep funnel shape: pow(1-x, 3) = steep walls, deep center
               const bowlShape = Math.pow(1 - normalized, 3)
-              // Concentric ripples add visual detail
               const ripple = 1 + 0.12 * Math.sin(dist * 2.8)
               displacement -= crisis.severity * 0.42 * bowlShape * ripple
             }
             break
           }
 
-          // ───────────────────────────────────────
           // DISASTER: CONCENTRIC SHOCKWAVE RINGS
-          // Sinusoidal waves radiating from epicenter
-          // ───────────────────────────────────────
           case 'disaster': {
             typeCode = 3
             const waveRadius = 18
@@ -434,22 +415,29 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
               const entry = waveData.find(w => w.crisis === crisis)
               const freq = entry ? entry.frequency : 2.2
               const phase = entry ? entry.phaseOffset : 0
-
-              // Amplitude envelope: strongest near center, fades outward
               const envelope = Math.pow(Math.max(0, 1 - dist / waveRadius), 1.8)
-
-              // Sinusoidal wave creating concentric rings
-              // sin(dist * freq) produces alternating ridges (+) and troughs (-)
               const wave = Math.sin(dist * freq + phase)
-
-              // Scale the wave by severity and envelope
               const amplitude = crisis.severity * 0.12
               displacement += wave * amplitude * envelope
-
-              // Add subtle surface roughening for realism
               const noise = (hash1(lat * 15 + phase, lng * 15) - 0.5) * 2
               const noiseFalloff = Math.pow(Math.max(0, 1 - dist / waveRadius), 2.5)
               displacement += noise * crisis.severity * 0.012 * noiseFalloff
+            }
+            break
+          }
+
+          // HEALTH: PULSATING BUBBLE / BLISTER
+          // Smooth dome pushed outward — organic, rounded, distinct from spikes
+          case 'health': {
+            typeCode = 4
+            const bubbleRadius = 12
+            if (dist < bubbleRadius) {
+              const normalized = dist / bubbleRadius
+              // Smooth dome: cos^2 falloff → rounded, not sharp
+              const dome = Math.pow(Math.cos(normalized * Math.PI / 2), 2)
+              // Add subtle blistered bumps using noise
+              const bumpNoise = 1 + 0.15 * Math.sin(lat * 8 + lng * 6) * Math.cos(lat * 5 - lng * 9)
+              displacement += crisis.severity * 0.25 * dome * bumpNoise
             }
             break
           }
@@ -457,7 +445,6 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
 
         totalDisplacement += displacement
 
-        // Track dominant type by weight of displacement
         const weight = Math.abs(displacement)
         if (weight > maxTypeWeight) {
           maxTypeWeight = weight
@@ -479,14 +466,37 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
     targetDispTypes.current = dispTypes
   }, [crisisData])
 
-  // ── Animation loop: lerp positions + update shader attributes ──
+  // ── Animation loop ──
   useFrame(({ clock }, delta) => {
-    // Auto-rotation
-    if (groupRef.current && autoRotate) {
+    // ── Navigation animation (smooth rotation to target country) ──
+    if (navAnimating.current && groupRef.current) {
+      navProgress.current += delta * 1.2 // ~0.8s for full rotation
+      const t = Math.min(navProgress.current, 1)
+      // Ease-in-out cubic
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+
+      const startY = navStartRotation.current.y
+      const endY = navTargetRotation.current.y
+
+      // Handle wraparound: find shortest rotation path
+      let diff = endY - startY
+      if (diff > Math.PI) diff -= 2 * Math.PI
+      if (diff < -Math.PI) diff += 2 * Math.PI
+
+      groupRef.current.rotation.y = startY + diff * eased
+      groupRef.current.rotation.x = navStartRotation.current.x * (1 - eased)
+
+      if (t >= 1) {
+        navAnimating.current = false
+        if (onNavigateComplete) onNavigateComplete()
+      }
+    }
+    // Auto-rotation (only if not navigating)
+    else if (groupRef.current && autoRotate) {
       groupRef.current.rotation.y += delta * 0.05
     }
 
-    // Pass time to shader for animated glow
+    // Pass time to shader
     if (materialRef.current) {
       materialRef.current.uTime = clock.getElapsedTime()
     }
@@ -518,7 +528,6 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
         geo.attributes.position.needsUpdate = true
         geo.computeVertexNormals()
 
-        // Update displacement attributes for shader coloring
         if (geo.attributes.aDisplacement && geo.attributes.aType) {
           const dispAttr = geo.attributes.aDisplacement.array
           const typeAttr = geo.attributes.aType.array
@@ -528,12 +537,11 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
 
           for (let vi = 0; vi < vertexCount; vi++) {
             const i3 = vi * 3
-            // Compute current displacement magnitude from difference to original radius
             const ox = orig[i3], oy = orig[i3 + 1], oz = orig[i3 + 2]
             const cx = current[i3], cy = current[i3 + 1], cz = current[i3 + 2]
             const origR = Math.sqrt(ox * ox + oy * oy + oz * oz)
             const currR = Math.sqrt(cx * cx + cy * cy + cz * cz)
-            dispAttr[vi] = currR - origR  // Signed: positive = ridge, negative = trough
+            dispAttr[vi] = currR - origR
             typeAttr[vi] = targetTypes[vi]
           }
 
@@ -544,7 +552,7 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
     }
   })
 
-  // ── Click handler: raycasting → find country → emit selection (unchanged) ──
+  // ── Click handler ──
   const handleClick = useCallback((event) => {
     event.stopPropagation()
 
@@ -588,7 +596,7 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
     }
   }, [crisisData, onCountryClick])
 
-  // ── Compute marker positions (unchanged) ──
+  // ── Compute marker positions ──
   const markers = useMemo(() => {
     if (!crisisData) return []
     return crisisData.map(crisis => ({
@@ -599,13 +607,16 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
 
   return (
     <group ref={groupRef}>
-      {/* Earth Sphere */}
       <mesh ref={meshRef} scale={[2.5, 2.5, 2.5]} onClick={handleClick}>
         <sphereGeometry ref={geometryRef} args={[1, 128, 128]} />
         <earthMaterial ref={materialRef} uTexture={colorMap} uTime={0} />
       </mesh>
 
-      {/* Crisis markers (inherit group rotation) */}
+      {/* Country border highlight */}
+      <group scale={[2.5, 2.5, 2.5]}>
+        <CountryHighlight countryKey={selectedCountryKey} />
+      </group>
+
       <group scale={[2.5, 2.5, 2.5]}>
         {markers.map((marker, i) => (
           <CrisisMarker
@@ -617,7 +628,6 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
         ))}
       </group>
 
-      {/* Outer Halo */}
       <mesh scale={[2.7, 2.7, 2.7]}>
         <sphereGeometry args={[1, 128, 128]} />
         <meshBasicMaterial
@@ -632,7 +642,7 @@ const Earth = ({ crisisData, onCountryClick, autoRotate }) => {
   )
 }
 
-// ─── Lights (unchanged) ───
+// ─── Lights ───
 const Lights = () => {
   return (
     <>
@@ -644,13 +654,19 @@ const Lights = () => {
   )
 }
 
-// ─── GlobeScene (unchanged) ───
+// ─── GlobeScene — Now reads filteredData + navigateTarget from store ───
 export default function GlobeScene() {
-  const { processedData, autoRotate } = useNewsState()
+  const { filteredData, autoRotate, navigateTarget, selectedCountry } = useNewsState()
   const dispatch = useNewsDispatch()
+
+  const selectedCountryKey = selectedCountry?.country || null
 
   const handleCountryClick = useCallback((countryData) => {
     dispatch({ type: 'SET_SELECTED_COUNTRY', payload: countryData })
+  }, [dispatch])
+
+  const handleNavigateComplete = useCallback(() => {
+    dispatch({ type: 'CLEAR_NAVIGATE' })
   }, [dispatch])
 
   return (
@@ -663,9 +679,12 @@ export default function GlobeScene() {
           <Stars radius={200} depth={80} count={6000} factor={5} saturation={0.1} fade speed={0.3} />
           <Stars radius={300} depth={100} count={4000} factor={7} saturation={0} fade speed={0.2} />
           <Earth
-            crisisData={processedData}
+            crisisData={filteredData}
             onCountryClick={handleCountryClick}
             autoRotate={autoRotate}
+            navigateTarget={navigateTarget}
+            onNavigateComplete={handleNavigateComplete}
+            selectedCountryKey={selectedCountryKey}
           />
           <OrbitControls
             enablePan={false}

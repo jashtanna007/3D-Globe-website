@@ -1,5 +1,5 @@
 import React from 'react';
-import { Triangle, TrendingDown, Zap } from 'lucide-react';
+import { Triangle, TrendingDown, Zap, Heart } from 'lucide-react';
 
 const LEGEND_ITEMS = [
   {
@@ -25,6 +25,14 @@ const LEGEND_ITEMS = [
     icon: Zap,
     color: '#ffaa00',
     effect: 'Shockwaves',
+  },
+  {
+    type: 'health',
+    label: 'HEALTH',
+    desc: 'Epidemics & outbreaks',
+    icon: Heart,
+    color: '#22c55e',
+    effect: 'Blisters',
   },
 ];
 

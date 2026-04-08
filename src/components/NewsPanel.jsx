@@ -1,11 +1,12 @@
 import React from 'react';
-import { X, ExternalLink, AlertTriangle, TrendingDown, Zap, Clock } from 'lucide-react';
+import { X, ExternalLink, AlertTriangle, TrendingDown, Zap, Heart, Clock } from 'lucide-react';
 import { useNewsState, useNewsDispatch } from '../store/newsStore';
 
 const TYPE_CONFIG = {
   conflict: { color: '#ff4444', icon: AlertTriangle, label: 'CONFLICT ZONE' },
   economic: { color: '#4488ff', icon: TrendingDown, label: 'ECONOMIC CRISIS' },
   disaster: { color: '#ffaa00', icon: Zap, label: 'NATURAL DISASTER' },
+  health: { color: '#22c55e', icon: Heart, label: 'HEALTH EMERGENCY' },
   general: { color: '#94a3b8', icon: AlertTriangle, label: 'GENERAL NEWS' },
 };
 
