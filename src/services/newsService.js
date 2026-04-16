@@ -59,7 +59,7 @@ export async function fetchCrisisNewsForDate(dateStr) {
   }
 
   try {
-    const url = `/api/news/v2/everything?q=${encodeURIComponent(CRISIS_QUERY)}&from=${dateStr}&to=${dateStr}&sortBy=publishedAt&pageSize=60&apiKey=${API_KEY}`;
+    const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(CRISIS_QUERY)}&from=${dateStr}&to=${dateStr}&sortBy=publishedAt&pageSize=60&apiKey=${API_KEY}`;
     const response = await fetch(url);
 
     if (!response.ok) {
